@@ -1,0 +1,901 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Users, Calendar, Bell, Shield, Plus, CheckCircle2, 
+  MapPin, Phone, Bike, Search, Check, X, Send, 
+  UserCheck, AlertTriangle, ChevronRight, Hash, Star
+} from 'lucide-react';
+
+// Initial Mock Data
+const INITIAL_MEMBERS = [
+  {
+    id: 1,
+    name: "Carlos 'Trovoada' Silva",
+    nickname: "Trovoada",
+    role: "Presidente",
+    bike: "Harley-Davidson Street Glide Special 114",
+    phone: "(11) 98765-4321",
+    status: "Ativo",
+    avatar: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=200&auto=format&fit=crop&q=80",
+    joinedDate: "2018"
+  },
+  {
+    id: 2,
+    name: "Roberto 'Fumaça' Santos",
+    nickname: "Fumaça",
+    role: "Vice-Presidente",
+    bike: "Harley-Davidson Ultra Glide Limited",
+    phone: "(11) 97654-3210",
+    status: "Ativo",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80",
+    joinedDate: "2019"
+  },
+  {
+    id: 3,
+    name: "Mariana 'Asa' Oliveira",
+    nickname: "Asa",
+    role: "Capitã de Estrada",
+    bike: "BMW R 1250 GS Adventure",
+    phone: "(11) 96543-2109",
+    status: "Ativo",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+    joinedDate: "2021"
+  },
+  {
+    id: 4,
+    name: "Lucas 'Escorpião' Mendes",
+    nickname: "Escorpião",
+    role: "Membro Efetivo",
+    bike: "Triumph Tiger 900 GT Pro",
+    phone: "(11) 95432-1098",
+    status: "Ativo",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80",
+    joinedDate: "2023"
+  }
+];
+
+const INITIAL_EVENTS = [
+  {
+    id: 1,
+    title: "Bate-Fica: Serra de Campos do Jordão",
+    date: "2026-11-15",
+    time: "07:30",
+    meetingPoint: "Posto Shell - Rod. Ayrton Senna KM 29",
+    destination: "Campos do Jordão - SP",
+    description: "Passeio clássico de fim de semana pela serra com almoço de integração no Morro do Elefante. Trajeto total de 340km (bate e fica).",
+    rsvps: [1, 2, 3],
+    category: "Passeio",
+    urgent: false
+  },
+  {
+    id: 2,
+    title: "Reunião Mensal & Churrasco de Integração",
+    date: "2026-11-20",
+    time: "19:30",
+    meetingPoint: "Sede Oficial do Moto Clube",
+    destination: "Sede MC",
+    description: "Alinhamento das viagens oficiais do 1º trimestre de 2027, votação de brasões para novos prospectos e prestação de contas.",
+    rsvps: [1, 2, 4],
+    category: "Reunião",
+    urgent: true
+  }
+];
+
+const INITIAL_NOTIFICATIONS = [
+  {
+    id: 1,
+    title: "Comunicado da Diretoria",
+    message: "Lembrete: Atualização do exame de saúde e manutenção das motos obrigatória antes do comboio de fim de ano.",
+    date: "Hoje às 10:30",
+    type: "alert"
+  },
+  {
+    id: 2,
+    title: "Novo Evento Confirmado!",
+    message: "Comboio 'Serra de Campos do Jordão' publicado. Confirme sua participação no mural de eventos.",
+    date: "Ontem às 18:00",
+    type: "event"
+  }
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('events');
+  const [isAdmin, setIsAdmin] = useState(true);
+
+  // Persistence via LocalStorage
+  const [members, setMembers] = useState(() => {
+    const saved = localStorage.getItem('mc_members');
+    return saved ? JSON.parse(saved) : INITIAL_MEMBERS;
+  });
+
+  const [events, setEvents] = useState(() => {
+    const saved = localStorage.getItem('mc_events');
+    return saved ? JSON.parse(saved) : INITIAL_EVENTS;
+  });
+
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('mc_notifs');
+    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+  });
+
+  const currentUserId = 1; // Logged in simulated user ID
+
+  // Modals state
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+
+  // Search & Filter
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('Todos');
+
+  // Form states
+  const [newMember, setNewMember] = useState({
+    name: '', nickname: '', role: 'Membro Efetivo', bike: '', phone: '', avatar: ''
+  });
+  const [newEvent, setNewEvent] = useState({
+    title: '', date: '', time: '08:00', meetingPoint: '', destination: '', description: '', category: 'Passeio', urgent: false
+  });
+  const [broadcastMsg, setBroadcastMsg] = useState({ title: '', message: '' });
+
+  // Notifications Toast
+  const [toast, setToast] = useState('');
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('mc_members', JSON.stringify(members));
+  }, [members]);
+
+  useEffect(() => {
+    localStorage.setItem('mc_events', JSON.stringify(events));
+  }, [events]);
+
+  useEffect(() => {
+    localStorage.setItem('mc_notifs', JSON.stringify(notifications));
+  }, [notifications]);
+
+  // RSVP Handler
+  const toggleRSVP = (eventId) => {
+    setEvents(prev => prev.map(ev => {
+      if (ev.id === eventId) {
+        const hasConfirmed = ev.rsvps.includes(currentUserId);
+        const newRsvps = hasConfirmed 
+          ? ev.rsvps.filter(id => id !== currentUserId)
+          : [...ev.rsvps, currentUserId];
+
+        showToast(hasConfirmed ? "Presença cancelada no evento." : "Presença confirmada no comboio!");
+        return { ...ev, rsvps: newRsvps };
+      }
+      return ev;
+    }));
+  };
+
+  // Add Member Handler
+  const handleAddMember = (e) => {
+    e.preventDefault();
+    if (!newMember.name || !newMember.phone) return;
+
+    const added = {
+      id: Date.now(),
+      ...newMember,
+      nickname: newMember.nickname || newMember.name.split(' ')[0],
+      status: 'Ativo',
+      avatar: newMember.avatar || `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80`,
+      joinedDate: new Date().getFullYear().toString()
+    };
+
+    setMembers([added, ...members]);
+    setIsAddMemberOpen(false);
+    setNewMember({ name: '', nickname: '', role: 'Membro Efetivo', bike: '', phone: '', avatar: '' });
+    showToast("Novo integrante cadastrado!");
+  };
+
+  // Add Event Handler
+  const handleAddEvent = (e) => {
+    e.preventDefault();
+    if (!newEvent.title || !newEvent.date) return;
+
+    const added = {
+      id: Date.now(),
+      ...newEvent,
+      rsvps: [currentUserId]
+    };
+
+    setEvents([added, ...events]);
+    setIsAddEventOpen(false);
+    setNewEvent({ title: '', date: '', time: '08:00', meetingPoint: '', destination: '', description: '', category: 'Passeio', urgent: false });
+
+    // Push automatic notification
+    setNotifications([
+      {
+        id: Date.now(),
+        title: `Novo Evento: ${added.title}`,
+        message: `Programado para ${added.date} às ${added.time}. Confirme sua presença no mural.`,
+        date: "Agora mesmo",
+        type: "event"
+      },
+      ...notifications
+    ]);
+
+    showToast("Novo evento publicado!");
+  };
+
+  // Broadcast Handler
+  const handleSendBroadcast = (e) => {
+    e.preventDefault();
+    if (!broadcastMsg.title || !broadcastMsg.message) return;
+
+    const notif = {
+      id: Date.now(),
+      title: broadcastMsg.title,
+      message: broadcastMsg.message,
+      date: "Agora mesmo",
+      type: "alert"
+    };
+
+    setNotifications([notif, ...notifications]);
+    setIsBroadcastOpen(false);
+    setBroadcastMsg({ title: '', message: '' });
+    showToast("Comunicado transmitido para todos os membros!");
+  };
+
+  const filteredMembers = members.filter(m => 
+    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    m.nickname.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    m.bike.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredEvents = events.filter(e => {
+    if (categoryFilter === 'Todos') return true;
+    return e.category === categoryFilter;
+  });
+
+  return (
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans antialiased pb-20 md:pb-8">
+      
+      {/* Toast Alert */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-amber-500 text-neutral-950 px-4 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-5 h-5" />
+          {toast}
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800 px-4 py-3">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-neutral-950 shadow-lg shadow-amber-500/20 font-black">
+              <Bike className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="font-extrabold text-base sm:text-lg tracking-wider text-amber-400 uppercase leading-none">
+                ROTA SOBERANA MC
+              </h1>
+              <span className="text-[11px] text-neutral-400 font-medium">Gestão & Comunidade de Estrada</span>
+            </div>
+          </div>
+
+          {/* Role Switcher */}
+          <button
+            onClick={() => setIsAdmin(!isAdmin)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              isAdmin 
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400' 
+                : 'bg-neutral-800 border-neutral-700 text-neutral-400'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>{isAdmin ? 'Visão Admin' : 'Visão Membro'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Desktop Navigation */}
+      <nav className="max-w-5xl mx-auto px-4 mt-4 hidden md:flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-2xl p-1.5">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              activeTab === 'events' ? 'bg-amber-500 text-neutral-950 shadow-md font-bold' : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Mural de Eventos
+          </button>
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              activeTab === 'members' ? 'bg-amber-500 text-neutral-950 shadow-md font-bold' : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Integrantes ({members.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('broadcast')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all relative ${
+              activeTab === 'broadcast' ? 'bg-amber-500 text-neutral-950 shadow-md font-bold' : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            Avisos
+            {notifications.length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+            )}
+          </button>
+        </div>
+
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsAddEventOpen(true)}
+              className="flex items-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 border border-amber-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+            >
+              <Plus className="w-4 h-4" /> Publicar Evento
+            </button>
+            <button
+              onClick={() => setIsAddMemberOpen(true)}
+              className="flex items-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 border border-amber-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+            >
+              <Plus className="w-4 h-4" /> Add Integrante
+            </button>
+          </div>
+        )}
+      </nav>
+
+      {/* Main Content Area */}
+      <main className="max-w-5xl mx-auto px-4 mt-4">
+
+        {/* TAB 1: EVENTS */}
+        {activeTab === 'events' && (
+          <div className="space-y-4">
+            
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-neutral-900/60 p-3 rounded-2xl border border-neutral-800">
+              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                <span className="text-xs text-neutral-400 font-semibold uppercase tracking-wider pl-1">Filtrar:</span>
+                {['Todos', 'Passeio', 'Reunião', 'Viagem'].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                      categoryFilter === cat
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                        : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {isAdmin && (
+                <button
+                  onClick={() => setIsAddEventOpen(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 md:hidden"
+                >
+                  <Plus className="w-4 h-4" /> Publicar Novo Evento
+                </button>
+              )}
+            </div>
+
+            {/* Events Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredEvents.map(event => {
+                const isConfirmed = event.rsvps.includes(currentUserId);
+
+                return (
+                  <div 
+                    key={event.id}
+                    className="bg-neutral-900 rounded-2xl border border-neutral-800 p-5 flex flex-col justify-between hover:border-neutral-700 transition-all shadow-xl relative overflow-hidden group"
+                  >
+                    {event.urgent && (
+                      <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] uppercase font-black px-3 py-1 rounded-bl-xl tracking-wider">
+                        Obrigatório
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                          {event.category}
+                        </span>
+                        <span className="text-xs text-neutral-400 font-medium">
+                          📅 {event.date} às {event.time}h
+                        </span>
+                      </div>
+
+                      <h3 className="text-lg font-bold text-neutral-100 group-hover:text-amber-400 transition-colors mb-2">
+                        {event.title}
+                      </h3>
+
+                      <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
+                        {event.description}
+                      </p>
+
+                      <div className="space-y-1.5 bg-neutral-950/60 p-3 rounded-xl border border-neutral-800/80 mb-4 text-xs">
+                        <div className="flex items-start gap-2 text-neutral-300">
+                          <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                          <span><strong className="text-neutral-400">Ponto de Encontro:</strong> {event.meetingPoint}</span>
+                        </div>
+                        <div className="flex items-start gap-2 text-neutral-300">
+                          <ChevronRight className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                          <span><strong className="text-neutral-400">Destino:</strong> {event.destination}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                          {event.rsvps.slice(0, 4).map(memberId => {
+                            const m = members.find(m => m.id === memberId);
+                            return m ? (
+                              <img
+                                key={memberId}
+                                src={m.avatar}
+                                alt={m.nickname}
+                                className="w-7 h-7 rounded-full border-2 border-neutral-900 object-cover"
+                                title={m.nickname}
+                              />
+                            ) : null;
+                          })}
+                        </div>
+                        <span className="text-xs text-neutral-400 font-medium">
+                          <strong>{event.rsvps.length}</strong> confirmados
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => toggleRSVP(event.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+                          isConfirmed
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                            : 'bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-md shadow-amber-500/10'
+                        }`}
+                      >
+                        {isConfirmed ? (
+                          <>
+                            <Check className="w-4 h-4" /> Presença Confirmada
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" /> Vou no Comboio
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: MEMBERS DIRECTORY */}
+        {activeTab === 'members' && (
+          <div className="space-y-4">
+            
+            {/* Search and Action Bar */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-neutral-900/60 p-3 rounded-2xl border border-neutral-800">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  placeholder="Buscar por vulgo, nome ou modelo da moto..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3 py-2 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              {isAdmin && (
+                <button
+                  onClick={() => setIsAddMemberOpen(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20"
+                >
+                  <Plus className="w-4 h-4" /> Cadastrar Integrante
+                </button>
+              )}
+            </div>
+
+            {/* Members Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMembers.map(member => (
+                <div 
+                  key={member.id}
+                  className="bg-neutral-900 rounded-2xl border border-neutral-800 p-4 flex gap-4 items-center hover:border-neutral-700 transition-all shadow-lg group relative"
+                >
+                  <div className="relative shrink-0">
+                    <img
+                      src={member.avatar}
+                      alt={member.name}
+                      className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-500/30 group-hover:border-amber-500 transition-colors"
+                    />
+                    <span className="absolute -bottom-1 -right-1 bg-emerald-500 w-3.5 h-3.5 rounded-full border-2 border-neutral-900" title="Ativo" />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <span className="font-extrabold text-sm text-neutral-100 truncate">
+                        "{member.nickname}"
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-400 truncate mb-1">
+                      {member.name}
+                    </p>
+
+                    <div className="inline-block bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md mb-2">
+                      {member.role}
+                    </div>
+
+                    <div className="space-y-0.5 text-[11px] text-neutral-400">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Bike className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span className="truncate font-medium text-neutral-300">{member.bike}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3 h-3 text-neutral-500 shrink-0" />
+                        <span>{member.phone}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: BROADCAST & NOTIFICATIONS */}
+        {activeTab === 'broadcast' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            
+            {isAdmin && (
+              <div className="bg-gradient-to-r from-neutral-900 to-neutral-900/80 p-4 rounded-2xl border border-amber-500/30 flex justify-between items-center gap-4 shadow-xl">
+                <div>
+                  <h3 className="font-bold text-sm text-neutral-100">Painel de Comunicados Oficiais</h3>
+                  <p className="text-xs text-neutral-400">Transmita avisos e alertas gerais em tempo real para os membros.</p>
+                </div>
+                <button
+                  onClick={() => setIsBroadcastOpen(true)}
+                  className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all shrink-0 shadow-lg shadow-amber-500/20"
+                >
+                  <Send className="w-4 h-4" /> Transmitir Aviso
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {notifications.map(notif => (
+                <div 
+                  key={notif.id}
+                  className="bg-neutral-900 p-4 rounded-2xl border border-neutral-800 flex gap-3.5 items-start hover:border-neutral-700 transition-all shadow-md"
+                >
+                  <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
+                    notif.type === 'alert' 
+                      ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  }`}>
+                    <Bell className="w-5 h-5" />
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="font-bold text-sm text-neutral-200">{notif.title}</h4>
+                      <span className="text-[10px] text-neutral-500 whitespace-nowrap">{notif.date}</span>
+                    </div>
+                    <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                      {notif.message}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* Mobile PWA Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-lg border-t border-neutral-800 px-6 py-2 z-40">
+        <div className="flex justify-around items-center">
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`flex flex-col items-center gap-1 py-1 transition-colors ${
+              activeTab === 'events' ? 'text-amber-400 font-bold' : 'text-neutral-500'
+            }`}
+          >
+            <Calendar className="w-5 h-5" />
+            <span className="text-[10px]">Eventos</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`flex flex-col items-center gap-1 py-1 transition-colors ${
+              activeTab === 'members' ? 'text-amber-400 font-bold' : 'text-neutral-500'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[10px]">Membros</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('broadcast')}
+            className={`flex flex-col items-center gap-1 py-1 transition-colors relative ${
+              activeTab === 'broadcast' ? 'text-amber-400 font-bold' : 'text-neutral-500'
+            }`}
+          >
+            <Bell className="w-5 h-5" />
+            <span className="text-[10px]">Avisos</span>
+          </button>
+        </div>
+      </div>
+
+      {/* MODAL: ADD MEMBER */}
+      {isAddMemberOpen && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-amber-400 flex items-center gap-2">
+                <Users className="w-5 h-5" /> Cadastrar Novo Integrante
+              </h3>
+              <button 
+                onClick={() => setIsAddMemberOpen(false)}
+                className="text-neutral-500 hover:text-neutral-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMember} className="space-y-3">
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Nome Completo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Carlos Eduardo Silva"
+                  value={newMember.name}
+                  onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-neutral-400 font-semibold mb-1">Apelido / Vulgo</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Trovoada"
+                    value={newMember.nickname}
+                    onChange={(e) => setNewMember({...newMember, nickname: e.target.value})}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-400 font-semibold mb-1">Cargo</label>
+                  <select
+                    value={newMember.role}
+                    onChange={(e) => setNewMember({...newMember, role: e.target.value})}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="Membro Efetivo">Membro Efetivo</option>
+                    <option value="Prospecto">Prospecto</option>
+                    <option value="Diretoria">Diretoria</option>
+                    <option value="Capitão de Estrada">Capitão de Estrada</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Modelo da Moto</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Harley-Davidson Street Glide / BMW GS"
+                  value={newMember.bike}
+                  onChange={(e) => setNewMember({...newMember, bike: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">WhatsApp / Telefone</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="(11) 99999-9999"
+                  value={newMember.phone}
+                  onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMemberOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-400 hover:text-neutral-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20"
+                >
+                  Salvar Integrante
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD EVENT */}
+      {isAddEventOpen && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-amber-400 flex items-center gap-2">
+                <Calendar className="w-5 h-5" /> Publicar Evento / Comboio
+              </h3>
+              <button 
+                onClick={() => setIsAddEventOpen(false)}
+                className="text-neutral-500 hover:text-neutral-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddEvent} className="space-y-3">
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Título do Evento</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Bate-Volta Serra do Mar"
+                  value={newEvent.title}
+                  onChange={(e) => setNewEvent({...newEvent, title: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-neutral-400 font-semibold mb-1">Data</label>
+                  <input
+                    type="date"
+                    required
+                    value={newEvent.date}
+                    onChange={(e) => setNewEvent({...newEvent, date: e.target.value})}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-400 font-semibold mb-1">Horário</label>
+                  <input
+                    type="text"
+                    placeholder="07:30"
+                    value={newEvent.time}
+                    onChange={(e) => setNewEvent({...newEvent, time: e.target.value})}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-400 font-semibold mb-1">Categoria</label>
+                  <select
+                    value={newEvent.category}
+                    onChange={(e) => setNewEvent({...newEvent, category: e.target.value})}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="Passeio">Passeio</option>
+                    <option value="Reunião">Reunião</option>
+                    <option value="Viagem">Viagem</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Ponto de Encontro</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Posto BR - Rodovia Ayrton Senna KM 29"
+                  value={newEvent.meetingPoint}
+                  onChange={(e) => setNewEvent({...newEvent, meetingPoint: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Destino Final</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Campos do Jordão - SP"
+                  value={newEvent.destination}
+                  onChange={(e) => setNewEvent({...newEvent, destination: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Descrição</label>
+                <textarea
+                  rows="3"
+                  placeholder="Instruções para o comboio, paradas de abastecimento..."
+                  value={newEvent.description}
+                  onChange={(e) => setNewEvent({...newEvent, description: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddEventOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-400 hover:text-neutral-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20"
+                >
+                  Publicar Evento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BROADCAST */}
+      {isBroadcastOpen && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-amber-400 flex items-center gap-2">
+                <Send className="w-5 h-5" /> Enviar Aviso Geral
+              </h3>
+              <button 
+                onClick={() => setIsBroadcastOpen(false)}
+                className="text-neutral-500 hover:text-neutral-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendBroadcast} className="space-y-3">
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Título do Comunicado</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Mudança de horário no comboio"
+                  value={broadcastMsg.title}
+                  onChange={(e) => setBroadcastMsg({...broadcastMsg, title: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-neutral-400 font-semibold mb-1">Mensagem</label>
+                <textarea
+                  rows="4"
+                  required
+                  placeholder="Escreva a mensagem oficial..."
+                  value={broadcastMsg.message}
+                  onChange={(e) => setBroadcastMsg({...broadcastMsg, message: e.target.value})}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBroadcastOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-400 hover:text-neutral-200"
+                >
+                  Cancelar
